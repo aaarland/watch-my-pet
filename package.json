@@ -9,10 +9,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@solid-primitives/devices": "^1.2.6",
+    "@solid-primitives/permission": "^1.2.6",
+    "@xenova/transformers": "^2.17.1",
     "solid-js": "^1.8.15"
   },
   "devDependencies": {
     "@biomejs/biome": "1.7.0",
+    "@vitejs/plugin-basic-ssl": "1.1.0",
     "typescript": "^5.2.2",
     "vite": "^5.2.0",
     "vite-plugin-solid": "^2.10.2"
