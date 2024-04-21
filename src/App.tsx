@@ -71,15 +71,6 @@ function Camera() {
         worker.removeEventListener("message", onMessageRecieved);
     });
 
-    function clearphoto(canvas: HTMLCanvasElement) {
-        const context = canvas.getContext("2d");
-        if (context === null) return;
-        context.fillStyle = "#AAA";
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        const data = canvas.toDataURL("image/png");
-        setImage(data);
-        // imageRef.setAttribute("src", data);
-    }
     function updateImage(canvas: HTMLCanvasElement) {
         const context = canvas.getContext("2d");
         if (context === null) return;
