@@ -1,4 +1,4 @@
-import { For, Show, onCleanup, onMount } from "solid-js";
+import { For, Show, createSignal, onCleanup, onMount } from "solid-js";
 import "./App.css";
 import { createCameras } from "@solid-primitives/devices";
 import { createPermission } from "@solid-primitives/permission";
@@ -16,13 +16,40 @@ export type ObjectDetectionMessage =
       }
     | { status: "initialized" };
 
+function RenderBox({ box, label }: ObjectDetectionPipelineSingle) {
+    const { xmax, xmin, ymax, ymin } = box;
+    const color =
+        "#" +
+        Math.floor(Math.random() * 0xffffff)
+            .toString(16)
+            .padStart(6, "0");
+
+    return (
+        <div
+            class="bounding-box"
+            style={{
+                "border-color": color,
+                left: 100 * xmin + "%",
+                top: 100 * ymin + "%",
+                width: 100 * (xmax - xmin) + "%",
+                height: 100 * (ymax - ymin) + "%",
+            }}
+        >
+            <div
+                class="bounding-box-label"
+                style={{ "background-color": color }}
+            >
+                {label}
+            </div>
+        </div>
+    );
+}
+
 function Camera() {
     const cameras = createCameras();
     let videoRef!: HTMLVideoElement;
-    let imageRef!: HTMLImageElement;
-    let canvasRef!: HTMLCanvasElement;
-    let imageContainerRef!: HTMLDivElement;
-    let timer: ReturnType<typeof setInterval> | undefined;
+    let [boxes, setBoxes] = createSignal<ObjectDetectionPipelineSingle[]>([]);
+    let [image, setImage] = createSignal<string | null>(null);
     let worker = new Worker(new URL("./worker.ts", import.meta.url), {
         type: "module",
     });
@@ -31,7 +58,7 @@ function Camera() {
         switch (e.data.status) {
             case "complete": {
                 const output = e.data.output;
-                output.flat().forEach(renderBox);
+                setBoxes(output.flat());
             }
         }
     }
@@ -44,54 +71,24 @@ function Camera() {
         worker.removeEventListener("message", onMessageRecieved);
     });
 
-    function clearphoto() {
-        const context = canvasRef.getContext("2d");
+    function clearphoto(canvas: HTMLCanvasElement) {
+        const context = canvas.getContext("2d");
         if (context === null) return;
         context.fillStyle = "#AAA";
-        context.fillRect(0, 0, canvasRef.width, canvasRef.height);
-
-        const data = canvasRef.toDataURL("image/png");
-        imageRef.setAttribute("src", data);
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        const data = canvas.toDataURL("image/png");
+        setImage(data);
+        // imageRef.setAttribute("src", data);
     }
-    function updateImage() {
-        const context = canvasRef.getContext("2d");
+    function updateImage(canvas: HTMLCanvasElement) {
+        const context = canvas.getContext("2d");
         if (context === null) return;
-        context.drawImage(videoRef, 0, 0, canvasRef.width, canvasRef.height);
+        context.drawImage(videoRef, 0, 0, canvas.width, canvas.height);
 
-        const data = canvasRef.toDataURL("image/png");
+        const data = canvas.toDataURL("image/png");
         worker.postMessage({ input: data });
-        imageRef.setAttribute("src", data);
-    }
-
-    function renderBox({ box, label }: ObjectDetectionPipelineSingle) {
-        const { xmax, xmin, ymax, ymin } = box;
-
-        // Generate a random color for the box
-        const color =
-            "#" +
-            Math.floor(Math.random() * 0xffffff)
-                .toString(16)
-                .padStart(6, "0");
-
-        // Draw the box
-        const boxElement = document.createElement("div");
-        boxElement.className = "bounding-box";
-        Object.assign(boxElement.style, {
-            borderColor: color,
-            left: 100 * xmin + "%",
-            top: 100 * ymin + "%",
-            width: 100 * (xmax - xmin) + "%",
-            height: 100 * (ymax - ymin) + "%",
-        });
-
-        // Draw label
-        const labelElement = document.createElement("span");
-        labelElement.textContent = label;
-        labelElement.className = "bounding-box-label";
-        labelElement.style.backgroundColor = color;
-
-        boxElement.appendChild(labelElement);
-        imageContainerRef.appendChild(boxElement);
+        setImage(data);
+        // imageRef.setAttribute("src", data);
     }
 
     async function setVideo(deviceId: string) {
@@ -108,31 +105,32 @@ function Camera() {
         });
         videoRef.srcObject = stream;
         await videoRef.play();
-        console.log(videoRef.videoWidth, videoRef.videoHeight);
-        canvasRef.width = videoRef.videoWidth;
-        canvasRef.height = videoRef.videoHeight;
-        clearphoto();
-        if (timer !== undefined) {
-            clearInterval(timer);
-        }
-        updateImage();
-        // timer = setInterval(() => updateImage(), 5000);
+    }
+
+    function makeCanvas() {
+        const canvas = document.createElement("canvas");
+        canvas.width = videoRef.videoWidth;
+        canvas.height = videoRef.videoHeight;
+        return canvas;
     }
 
     return (
         <>
-            <div>
+            <div class="col">
                 <video ref={videoRef} />
-                <div ref={imageContainerRef} id="image-container">
-                    <img ref={imageRef} />
+                <button onClick={() => updateImage(makeCanvas())}>Take New Photo</button>
+                <div id="image-container">
+                    <For each={boxes()}>{(box) => <RenderBox {...box} />}</For>
+                    <Show when={image() !== null}><img src={image() ?? undefined}/></Show>
                 </div>
-                <canvas ref={canvasRef} style={{ display: "none" }} />
             </div>
             <Show when={cameras().length > 0}>
                 <select onChange={(e) => setVideo(e.target.value)}>
                     <option>Select Camera</option>
                     <For each={cameras()} fallback={<p>No cameras found</p>}>
-                        {(item) => <option>{item.deviceId}</option>}
+                        {(item) => (
+                            <option value={item.deviceId}>{item.label}</option>
+                        )}
                     </For>
                 </select>
             </Show>
@@ -162,9 +160,6 @@ function App() {
             >
                 <Camera />
             </Show>
-            <p class="read-the-docs">
-                Click on the Vite and Solid logos to learn more
-            </p>
         </>
     );
 }
