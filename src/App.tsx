@@ -108,7 +108,7 @@ function Camera() {
     return (
         <>
             <div class="col">
-                <video ref={videoRef} />
+                <video ref={videoRef} playsinline/>
                 <button onClick={() => updateImage(makeCanvas())}>Take New Photo</button>
                 <div id="image-container">
                     <For each={boxes()}>{(box) => <RenderBox {...box} />}</For>
